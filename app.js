@@ -350,7 +350,7 @@ function browse() {
     )
     .join(
       "",
-    )}</div><div class="browse-layout"><aside class="panel filters"><form id="filter-form"><h3>تصفية النتائج</h3><div><label for="filter-category">القسم</label><select id="filter-category">${categories.map((c) => `<option value="${c[0]}" ${filters.category === c[0] ? "selected" : ""}>${c[1]}</option>`).join("")}</select></div><div><label for="filter-city">المدينة</label><select id="filter-city">${options(cities, filters.city, "كل المدن")}</select></div><div><label for="min">السعر من (ر.س)</label><input type="number" min="0" id="min" value="${esc(filters.min)}" placeholder="0"></div><div><label for="max">السعر إلى (ر.س)</label><input type="number" min="0" id="max" value="${esc(filters.max)}" placeholder="بدون حد"></div><p class="error" id="filter-error" role="alert"></p><button class="primary" style="width:100%;margin-top:15px">تطبيق الفلاتر</button><button class="secondary" type="button" id="reset">مسح جميع الفلاتر</button></form></aside><section><div class="toolbar"><div><h2>${filters.category === "all" ? "جميع الإعلانات" : catLabel(filters.category)}</h2><small role="status">${results.length} إعلان متاح</small></div><label>الترتيب <select id="sort" aria-label="ترتيب النتائج">${[
+    )}</div><div class="browse-layout"><aside class="panel filters"><form id="filter-form"><h3>تصفية النتائج</h3><div><label for="filter-category">القسم</label><select id="filter-category">${categories.map((c) => `<option value="${c[0]}" ${filters.category === c[0] ? "selected" : ""}>${c[1]}</option>`).join("")}</select></div><div><label for="filter-city">المدينة</label><select id="filter-city">${options(cities, filters.city, "كل المدن")}</select></div><div><label for="min">السعر من (ر.س)</label><input type="text" inputmode="decimal" dir="ltr" id="min" value="${esc(filters.min)}" placeholder="0"></div><div><label for="max">السعر إلى (ر.س)</label><input type="text" inputmode="decimal" dir="ltr" id="max" value="${esc(filters.max)}" placeholder="بدون حد"></div><p class="error" id="filter-error" role="alert"></p><button class="primary" style="width:100%;margin-top:15px">تطبيق الفلاتر</button><button class="secondary" type="button" id="reset">مسح جميع الفلاتر</button></form></aside><section><div class="toolbar"><div><h2>${filters.category === "all" ? "جميع الإعلانات" : catLabel(filters.category)}</h2><small role="status">${results.length} إعلان متاح</small></div><label>الترتيب <select id="sort" aria-label="ترتيب النتائج">${[
     ["recent", "الأحدث أولاً"],
     ["low", "السعر: الأقل أولاً"],
     ["high", "السعر: الأعلى أولاً"],
@@ -518,6 +518,13 @@ function collectDraft() {
     draft[k] = document.getElementById(k)?.value?.trim() || "";
   write("draft", draft);
 }
+// Native number inputs reject Arabic digits in some browsers.
+function normalizePrice(value) {
+  return value.trim()
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x6f0))
+    .replace(/٫/g, ".");
+}
 function bind() {
   document.querySelector("#search-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -560,8 +567,16 @@ function bind() {
   });
   document.querySelector("#filter-form")?.addEventListener("submit", (e) => {
     e.preventDefault();
-    const min = document.querySelector("#min").value,
-      max = document.querySelector("#max").value;
+    const min = normalizePrice(document.querySelector("#min").value),
+      max = normalizePrice(document.querySelector("#max").value);
+    for (const [id, value] of [["min", min], ["max", max]]) {
+      if (value && (!/^\d+(?:\.\d+)?$/.test(value) || !Number.isFinite(Number(value)))) {
+        document.querySelector("#filter-error").textContent =
+          "أدخل سعرًا صحيحًا يساوي صفرًا أو أكبر.";
+        document.getElementById(id).focus();
+        return;
+      }
+    }
     if (min && max && Number(min) > Number(max)) {
       document.querySelector("#filter-error").textContent =
         "يجب أن يكون الحد الأعلى أكبر من الحد الأدنى.";
